@@ -1,0 +1,11 @@
+name: vae
+latent_dim: 128
+loss: l1      # l1 | l2 | ssim | ssim_l1
+beta: 1.0     # KL weight
+lr: 1.0e-4
+encoder_channels:
+  - 32
+  - 64
+  - 128
+  - 256
+  - 512

@@ -1,0 +1,9 @@
+name: unet
+latent_dim: 128
+loss: l1      # l1 | l2 | ssim | ssim_l1
+lr: 1.0e-4
+encoder_channels:
+  - 64
+  - 128
+  - 256
+  - 512

@@ -1,0 +1,23 @@
+defaults:
+  - model: vae
+  - trainer: default
+  - logger: wandb
+  - _self_
+
+data:
+  data_dir: /content/mvtec
+  classes:
+    - cable
+    - capsule
+    - screw
+    - transistor
+  image_size: 128
+  batch_size: 32
+  num_workers: 2
+  train_val_split: 0.85
+
+seed: 42
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}_${model.name}_${model.loss}
