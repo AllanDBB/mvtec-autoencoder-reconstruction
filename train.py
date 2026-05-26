@@ -4,8 +4,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf.base import ContainerMetadata
 # PyTorch 2.6+ requires explicit allowlist for non-tensor globals in checkpoints
-torch.serialization.add_safe_globals([DictConfig, ListConfig])
+torch.serialization.add_safe_globals([DictConfig, ListConfig, ContainerMetadata])
 
 import pytorch_lightning as pl
 import hydra

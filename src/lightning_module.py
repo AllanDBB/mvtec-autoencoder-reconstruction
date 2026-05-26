@@ -15,7 +15,7 @@ from src.losses.losses import ReconstructionLoss
 class AutoencoderModule(pl.LightningModule):
     def __init__(self, model_cfg, data_cfg):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=['model_cfg', 'data_cfg'])
         self.model_cfg = model_cfg
         self.data_cfg = data_cfg
 
