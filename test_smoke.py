@@ -48,13 +48,16 @@ def run_smoke(model_name='vae', loss='l1'):
 
     make_fake_mvtec(data_dir)
 
+    # VAE needs exactly 5 layers, UNet needs exactly 4 (+ bottleneck)
+    # to produce 4x4 spatial from 128x128 input — match layer count, shrink channels
+    enc_channels = [8, 16, 32, 64, 128] if model_name == 'vae' else [8, 16, 32, 64]
     model_cfg = OmegaConf.create({
         'name': model_name,
         'latent_dim': 8,
         'loss': loss,
         'beta': 1.0,
         'lr': 1e-4,
-        'encoder_channels': [8, 16],
+        'encoder_channels': enc_channels,
     })
     data_cfg = OmegaConf.create({
         'image_size': 128,
