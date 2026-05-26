@@ -7,6 +7,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf.base import ContainerMetadata
 # PyTorch 2.6+ requires explicit allowlist for non-tensor globals in checkpoints
 torch.serialization.add_safe_globals([DictConfig, ListConfig, ContainerMetadata])
+torch.set_float32_matmul_precision('high')
 
 import pytorch_lightning as pl
 import hydra
