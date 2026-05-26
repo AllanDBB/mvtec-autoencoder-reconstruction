@@ -61,7 +61,7 @@ def main(cfg: DictConfig) -> None:
         monitor='val/loss',
         mode='min',
         save_top_k=1,
-        filename='best-{epoch:03d}-{val_loss:.4f}',
+        filename='best-{epoch:03d}',
     )
     lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='epoch')
 
