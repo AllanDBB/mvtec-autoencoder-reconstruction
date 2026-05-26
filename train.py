@@ -1,12 +1,14 @@
 import sys
 import os
-# Ensure src/ is importable when called from any working directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import torch
+from omegaconf import DictConfig, ListConfig, OmegaConf
+# PyTorch 2.6+ requires explicit allowlist for non-tensor globals in checkpoints
+torch.serialization.add_safe_globals([DictConfig, ListConfig])
+
 import pytorch_lightning as pl
 import hydra
-from omegaconf import DictConfig, OmegaConf
 import wandb
 
 from src.datasets.mvtec import MVTecDataModule
