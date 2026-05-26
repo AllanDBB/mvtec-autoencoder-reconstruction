@@ -41,6 +41,7 @@ def main(cfg: DictConfig) -> None:
     # ------------------------------------------------------------------
     # Logger
     # ------------------------------------------------------------------
+    run_name = f"{cfg.model.name}_{cfg.model.loss}_z{cfg.model.latent_dim}"
     logger = pl.loggers.WandbLogger(
         project=cfg.logger.project,
         entity=cfg.logger.entity if cfg.logger.entity else None,
@@ -52,7 +53,6 @@ def main(cfg: DictConfig) -> None:
     # ------------------------------------------------------------------
     # Callbacks
     # ------------------------------------------------------------------
-    run_name = f"{cfg.model.name}_{cfg.model.loss}_z{cfg.model.latent_dim}"
     ckpt_dir = os.path.join(cfg.checkpoint_dir, run_name)
     os.makedirs(ckpt_dir, exist_ok=True)
     checkpoint_cb = pl.callbacks.ModelCheckpoint(
