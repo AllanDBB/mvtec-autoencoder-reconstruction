@@ -4,6 +4,8 @@ defaults:
   - logger: wandb
   - _self_
 
+checkpoint_dir: /content/drive/MyDrive/tarea03_checkpoints
+
 data:
   data_dir: /content/mvtec
   classes:
