@@ -8,22 +8,23 @@
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{xcolor}
+\usepackage{url}
 
 \graphicspath{{./}}
-
-% Macro para imágenes pendientes de WandB
-\newcommand{\wandbtodo}[1]{%
-  \begin{center}
-  \fcolorbox{red}{yellow!20}{\parbox{0.9\linewidth}{%
-    \small\textbf{[TODO --- Imagen WandB]:}\\#1}}
-  \end{center}}
 
 \title{Tarea 03 -- Generaci\'on de Im\'agenes con Autoencoder:\\
 PyTorch Lightning · Hydra · WandB}
 
 \author{
-\IEEEauthorblockN{Allan Bola\~nos Barrientos, Jose David Chaves Mena}
-\IEEEauthorblockA{Instituto Tecnol\'ogico de Costa Rica}
+\IEEEauthorblockN{Allan Bola\~nos Barrientos}
+\IEEEauthorblockA{Escuela de Ingenier\'ia en Computaci\'on\\
+Instituto Tecnol\'ogico de Costa Rica\\
+allanbb@estudiantec.cr}
+\and
+\IEEEauthorblockN{Jose David Chaves Mena}
+\IEEEauthorblockA{Escuela de Ingenier\'ia en Computaci\'on\\
+Instituto Tecnol\'ogico de Costa Rica\\
+josechaves@estudiantec.cr}
 }
 
 \begin{document}
@@ -43,6 +44,8 @@ mayor separaci\'on entre im\'agenes normales y defectuosas
 ($\Delta\mu_{\text{VAE+SSIM+L1}} = +0.00211$), mientras que L1 y L2
 generan modelos que reconstruyen igualmente bien ambas clases, siendo
 ineficaces para la detecci\'on de anomal\'ias.
+El c\'odigo fuente y el cuaderno de experimentos est\'an disponibles
+en \cite{repo} y \cite{notebook}.
 \end{abstract}
 
 % =============================================================
@@ -55,10 +58,13 @@ sobre im\'agenes normales y se espera que presenten mayor error de
 reconstrucci\'on ante im\'agenes defectuosas, ya que el modelo no ha
 aprendido esos patrones.
 
-Este trabajo implementa y compara un VAE y un U-Net AE sobre el dataset
-MVTec AD \cite{mvtec}, usando PyTorch Lightning para estructurar el
-entrenamiento, Hydra para la gesti\'on modular de configuraciones y
-WandB para el seguimiento y comparaci\'on de experimentos.
+Este trabajo implementa y compara un VAE \cite{vae} y un U-Net AE sobre
+el dataset MVTec AD \cite{mvtec}, usando PyTorch Lightning \cite{pytorch}
+para estructurar el entrenamiento, Hydra para la gesti\'on modular de
+configuraciones y WandB para el seguimiento y comparaci\'on de
+experimentos.
+La implementaci\'on completa se encuentra en \cite{repo} y los
+experimentos reproducibles en el cuaderno \cite{notebook}.
 
 % =============================================================
 \section{Dataset}
@@ -138,8 +144,8 @@ Se compararon cuatro funciones sobre cada arquitectura:
   \item \textbf{L1}: error absoluto medio, robusto a valores at\'ipicos.
   \item \textbf{L2}: error cuadr\'atico medio, penaliza fuertemente
         errores grandes.
-  \item \textbf{SSIM}: similitud estructural, modela la percepci\'on
-        humana de calidad de imagen.
+  \item \textbf{SSIM} \cite{ssim}: similitud estructural, modela la
+        percepci\'on humana de calidad de imagen.
   \item \textbf{SSIM+L1}: combinaci\'on que aporta la estabilidad de L1
         y la sensibilidad estructural de SSIM.
 \end{itemize}
@@ -153,18 +159,35 @@ $10^{-4}$, optimizador Adam con \textit{ReduceLROnPlateau}
 % =============================================================
 \section{Experimentos y Resultados}
 
-\subsection{Curvas de P\'erdida}
+\subsection{P\'erdida de Validaci\'on Final}
 
-\wandbtodo{Captura de WandB: curvas \texttt{train/loss\_epoch} y
-\texttt{val/loss} para los 4 experimentos del \textbf{VAE} superpuestas
-en una sola gr\'afica. Panel WandB $\to$ Charts, agrupar por run name,
-filtrar por \texttt{model=vae}.}
+La Tabla~\ref{tab:valloss} resume la mejor p\'erdida de validaci\'on
+registrada en WandB para cada configuraci\'on.
+El U-Net AE converge a valores considerablemente menores en todas las
+configuraciones, consecuencia directa de sus \textit{skip connections}.
 
-\wandbtodo{Captura de WandB: curvas \texttt{train/loss\_epoch} y
-\texttt{val/loss} para los 4 experimentos del \textbf{U-Net AE}.
-Misma vista, filtrar por \texttt{model=unet}.}
+\begin{table}[H]
+\caption{Mejor p\'erdida de validaci\'on por configuraci\'on (50 \'epocas)}
+\label{tab:valloss}
+\centering
+\begin{tabular}{llc}
+\toprule
+\textbf{Modelo} & \textbf{P\'erdida} & \textbf{Val loss} \\
+\midrule
+VAE   & L1      & 0.2243 \\
+VAE   & L2      & 0.0897 \\
+VAE   & SSIM    & 0.7293 \\
+VAE   & SSIM+L1 & 0.6643 \\
+\midrule
+U-Net & L1      & 0.0172 \\
+U-Net & L2      & 0.0008 \\
+U-Net & SSIM    & 0.0189 \\
+U-Net & SSIM+L1 & 0.0169 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\subsection{Error de Reconstrucci\'on}
+\subsection{Error de Reconstrucci\'on en Test}
 
 La Tabla~\ref{tab:mse} resume el MSE promedio sobre las 542 im\'agenes
 de prueba.
@@ -182,11 +205,14 @@ indican capacidad de separaci\'on para detecci\'on de anomal\'ias.
 $\mu_{\text{normal}}$ & $\mu_{\text{defecto}}$ & $\Delta\mu$ \\
 \midrule
 VAE   & L1      & 0.03629 & 0.02611 & \textcolor{red}{$-$0.01018} \\
+VAE   & L2      & 0.01833 & 0.01366 & \textcolor{red}{$-$0.00467} \\
+VAE   & SSIM    & 0.05004 & 0.03705 & \textcolor{red}{$-$0.01299} \\
 VAE   & SSIM+L1 & 0.05410 & 0.05621 & \textcolor{green!60!black}{$+$0.00211} \\
+\midrule
 U-Net & L1      & 0.00057 & 0.00041 & \textcolor{red}{$-$0.00016} \\
 U-Net & L2      & 0.00069 & 0.00052 & \textcolor{red}{$-$0.00017} \\
-U-Net & SSIM+L1 & 0.00067 & 0.00070 & \textcolor{green!60!black}{$+$0.00003} \\
 U-Net & SSIM    & 0.00123 & 0.00168 & \textcolor{green!60!black}{$+$0.00045} \\
+U-Net & SSIM+L1 & 0.00067 & 0.00070 & \textcolor{green!60!black}{$+$0.00003} \\
 \bottomrule
 \end{tabular}%
 }
@@ -279,9 +305,9 @@ al no poder reconstruir perfectamente, el modelo es m\'as sensible a
 patrones fuera de distribuci\'on.
 
 El U-Net AE con \textit{skip connections} logra reconstrucciones m\'as
-n\'itidas en general, pero esta capacidad juega en su contra cuando se
-busca discriminar anomal\'ias, pues tiende a generalizar bien incluso
-sobre im\'agenes defectuosas.
+n\'itidas en general (Figura~\ref{fig:recon}), pero esta capacidad juega
+en su contra cuando se busca discriminar anomal\'ias, pues tiende a
+generalizar bien incluso sobre im\'agenes defectuosas.
 
 \subsection{Espacio Latente}
 
@@ -343,6 +369,18 @@ Similarity,''
 A.~Paszke et al.,
 ``PyTorch: An Imperative Style, High-Performance Deep Learning Library,''
 \textit{NeurIPS 32}, 2019.
+
+\bibitem{repo}
+A.~Bola\~nos Barrientos and J.~D.~Chaves Mena,
+``mvtec-autoencoder-reconstruction,''
+GitHub, 2025.
+[Online]. Available: \url{https://github.com/AllanDBB/mvtec-autoencoder-reconstruction}
+
+\bibitem{notebook}
+A.~Bola\~nos Barrientos and J.~D.~Chaves Mena,
+``Tarea 03 --- Cuaderno de Experimentos,''
+Google Colab, 2025.
+[Online]. Available: \url{https://colab.research.google.com/drive/12BJ7j7Cax0TvKm4fzNAxTz6kOrY02dHn}
 
 \end{thebibliography}
 
