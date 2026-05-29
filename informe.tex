@@ -1,0 +1,349 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+
+\graphicspath{{./}}
+
+% Macro para imágenes pendientes de WandB
+\newcommand{\wandbtodo}[1]{%
+  \begin{center}
+  \fcolorbox{red}{yellow!20}{\parbox{0.9\linewidth}{%
+    \small\textbf{[TODO --- Imagen WandB]:}\\#1}}
+  \end{center}}
+
+\title{Tarea 03 -- Generaci\'on de Im\'agenes con Autoencoder:\\
+PyTorch Lightning · Hydra · WandB}
+
+\author{
+\IEEEauthorblockN{Allan Bola\~nos Barrientos, Jose David Chaves Mena}
+\IEEEauthorblockA{Instituto Tecnol\'ogico de Costa Rica}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Se implementaron y compararon dos arquitecturas de autoencoder ---
+VAE (\textit{Variational Autoencoder}) y U-Net AE --- para la
+detecci\'on de anomal\'ias sobre el dataset MVTec AD, restringido a
+cuatro clases industriales.
+Cada arquitectura fue entrenada con cuatro funciones de p\'erdida
+(L1, L2, SSIM, SSIM+L1), totalizando ocho experimentos controlados
+mediante Hydra y monitoreados en Weights \& Biases.
+Los resultados muestran que las p\'erdidas basadas en SSIM producen
+mayor separaci\'on entre im\'agenes normales y defectuosas
+($\Delta\mu_{\text{VAE+SSIM+L1}} = +0.00211$), mientras que L1 y L2
+generan modelos que reconstruyen igualmente bien ambas clases, siendo
+ineficaces para la detecci\'on de anomal\'ias.
+\end{abstract}
+
+% =============================================================
+\section{Introducci\'on}
+
+La detecci\'on de anomal\'ias en entornos industriales busca identificar
+defectos sin ejemplos etiquetados de fallas durante el entrenamiento.
+Los autoencoders son una soluci\'on natural: se entrenan \'unicamente
+sobre im\'agenes normales y se espera que presenten mayor error de
+reconstrucci\'on ante im\'agenes defectuosas, ya que el modelo no ha
+aprendido esos patrones.
+
+Este trabajo implementa y compara un VAE y un U-Net AE sobre el dataset
+MVTec AD \cite{mvtec}, usando PyTorch Lightning para estructurar el
+entrenamiento, Hydra para la gesti\'on modular de configuraciones y
+WandB para el seguimiento y comparaci\'on de experimentos.
+
+% =============================================================
+\section{Dataset}
+
+Se utiliz\'o el dataset MVTec AD, restringido a cuatro clases:
+\textbf{cable}, \textbf{capsule}, \textbf{screw} y \textbf{transistor}.
+Cada imagen fue redimensionada a $128 \times 128$ p\'ixeles con 3 canales
+RGB y normalizada al rango $[0,1]$.
+
+El conjunto de entrenamiento contiene \'unicamente im\'agenes sin defectos.
+El conjunto de prueba incluye muestras normales y con distintos tipos de
+anomal\'ias, totalizando \textbf{542 im\'agenes}.
+La partici\'on entrenamiento/validaci\'on se realiz\'o con proporci\'on
+85\%/15\% sobre las muestras de entrenamiento.
+
+% =============================================================
+\section{Arquitecturas}
+
+\subsection{VAE --- Variational Autoencoder}
+
+El encoder convolucional tiene cinco bloques con canales
+$[32,\,64,\,128,\,256,\,512]$, seguido de capas lineales que proyectan
+al espacio latente gaussiano de dimensi\'on $z = 128$.
+La funci\'on de p\'erdida total es:
+
+\begin{equation}
+  \mathcal{L} = \mathcal{L}_{\text{recon}}
+              + \beta \cdot \mathcal{L}_{\text{KL}}, \quad \beta = 1.0
+\end{equation}
+
+\begin{equation}
+  \mathcal{L}_{\text{KL}}
+    = -\frac{1}{2}\sum\!\left(1 + \log\sigma^2 - \mu^2 - \sigma^2\right)
+\end{equation}
+
+\subsection{U-Net AE}
+
+El encoder tiene cuatro bloques con canales $[64,\,128,\,256,\,512]$ y
+\textit{skip connections} que conectan cada nivel del encoder con su
+correspondiente en el decoder, permitiendo recuperar detalles finos de
+textura.
+El espacio latente es de dimensi\'on $z = 128$.
+A diferencia del VAE, no impone una distribuci\'on expl\'icita sobre el
+espacio latente.
+
+% =============================================================
+\section{Configuraci\'on Experimental}
+
+\subsection{Estructura Hydra}
+
+El proyecto se organiz\'o con la siguiente estructura de configuraci\'on:
+
+\begin{verbatim}
+conf/
+  config.yaml
+  model/
+    vae.yaml
+    u-net.yaml
+  trainer/
+    default.yaml
+  logger/
+    wandb.yaml
+\end{verbatim}
+
+Esto permite ejecutar cualquier combinaci\'on de modelo y p\'erdida
+mediante un \'unico comando, por ejemplo:
+
+\begin{verbatim}
+python train.py model=vae model.loss=ssim_l1
+\end{verbatim}
+
+\subsection{Funciones de P\'erdida}
+
+Se compararon cuatro funciones sobre cada arquitectura:
+
+\begin{itemize}
+  \item \textbf{L1}: error absoluto medio, robusto a valores at\'ipicos.
+  \item \textbf{L2}: error cuadr\'atico medio, penaliza fuertemente
+        errores grandes.
+  \item \textbf{SSIM}: similitud estructural, modela la percepci\'on
+        humana de calidad de imagen.
+  \item \textbf{SSIM+L1}: combinaci\'on que aporta la estabilidad de L1
+        y la sensibilidad estructural de SSIM.
+\end{itemize}
+
+\subsection{Hiperpar\'ametros Comunes}
+
+Todos los experimentos comparten: batch size 128, learning rate
+$10^{-4}$, optimizador Adam con \textit{ReduceLROnPlateau}
+(factor 0.5, paciencia 8), 50 \'epocas, precisi\'on \texttt{bf16-mixed}.
+
+% =============================================================
+\section{Experimentos y Resultados}
+
+\subsection{Curvas de P\'erdida}
+
+\wandbtodo{Captura de WandB: curvas \texttt{train/loss\_epoch} y
+\texttt{val/loss} para los 4 experimentos del \textbf{VAE} superpuestas
+en una sola gr\'afica. Panel WandB $\to$ Charts, agrupar por run name,
+filtrar por \texttt{model=vae}.}
+
+\wandbtodo{Captura de WandB: curvas \texttt{train/loss\_epoch} y
+\texttt{val/loss} para los 4 experimentos del \textbf{U-Net AE}.
+Misma vista, filtrar por \texttt{model=unet}.}
+
+\subsection{Error de Reconstrucci\'on}
+
+La Tabla~\ref{tab:mse} resume el MSE promedio sobre las 542 im\'agenes
+de prueba.
+$\Delta\mu = \mu_{\text{defecto}} - \mu_{\text{normal}}$; valores positivos
+indican capacidad de separaci\'on para detecci\'on de anomal\'ias.
+
+\begin{table}[H]
+\caption{MSE de reconstrucci\'on en el conjunto de prueba}
+\label{tab:mse}
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llccc}
+\toprule
+\textbf{Modelo} & \textbf{P\'erdida} &
+$\mu_{\text{normal}}$ & $\mu_{\text{defecto}}$ & $\Delta\mu$ \\
+\midrule
+VAE   & L1      & 0.03629 & 0.02611 & \textcolor{red}{$-$0.01018} \\
+VAE   & SSIM+L1 & 0.05410 & 0.05621 & \textcolor{green!60!black}{$+$0.00211} \\
+U-Net & L1      & 0.00057 & 0.00041 & \textcolor{red}{$-$0.00016} \\
+U-Net & L2      & 0.00069 & 0.00052 & \textcolor{red}{$-$0.00017} \\
+U-Net & SSIM+L1 & 0.00067 & 0.00070 & \textcolor{green!60!black}{$+$0.00003} \\
+U-Net & SSIM    & 0.00123 & 0.00168 & \textcolor{green!60!black}{$+$0.00045} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{Histogramas de Error}
+
+La Figura~\ref{fig:hist} muestra las distribuciones de MSE para los 8
+modelos evaluados. Solo las configuraciones con SSIM presentan
+separaci\'on positiva ($\Delta\mu > 0$) entre clases.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{histogramas_error.png}
+  \caption{Distribuciones de error de reconstrucci\'on (MSE) para im\'agenes
+           normales (verde) vs.\ defectuosas (rojo) en las 542 im\'agenes
+           de prueba.}
+  \label{fig:hist}
+\end{figure*}
+
+La Figura~\ref{fig:defecto} desglosa el error por tipo de defecto para el
+primer modelo evaluado, ilustrando la variabilidad del error seg\'un el
+tipo de anomal\'ia presente.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\columnwidth]{error_por_defecto.png}
+  \caption{Error de reconstrucci\'on (MSE) por subclase de defecto ---
+           VAE con p\'erdida L1.}
+  \label{fig:defecto}
+\end{figure}
+
+\subsection{Reconstrucciones Visuales}
+
+La Figura~\ref{fig:recon} compara las reconstrucciones de validaci\'on al
+final del entrenamiento para los 8 modelos. El U-Net AE produce
+reconstrucciones notablemente m\'as n\'itidas gracias a las
+\textit{skip connections}.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{reconstructions_all_models.png}
+  \caption{Reconstrucciones de validaci\'on en la \'ultima \'epoca.
+           Fila superior: VAE (L1, L2, SSIM, SSIM+L1).
+           Fila inferior: U-Net AE (mismas p\'erdidas).}
+  \label{fig:recon}
+\end{figure*}
+
+\subsection{Espacio Latente (t-SNE)}
+
+La Figura~\ref{fig:tsne} visualiza el espacio latente sobre el conjunto
+de prueba mediante t-SNE. Puntos verdes representan im\'agenes normales,
+rojos im\'agenes defectuosas.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{tsne_all_models.png}
+  \caption{t-SNE del espacio latente sobre el conjunto de prueba para los
+           8 modelos. El VAE tiende a formar cl\'usters m\'as compactos
+           gracias a la regularizaci\'on KL.}
+  \label{fig:tsne}
+\end{figure*}
+
+% =============================================================
+\section{An\'alisis y Discusi\'on}
+
+\subsection{Efecto de la Funci\'on de P\'erdida}
+
+La Tabla~\ref{tab:mse} muestra un patr\'on claro: \textbf{L1 y L2
+producen $\Delta\mu$ negativo}, es decir, los modelos reconstruyen mejor
+las im\'agenes defectuosas que las normales, invirtiendo el criterio de
+detecci\'on.
+Esto es especialmente pronunciado en U-Net AE, donde las
+\textit{skip connections} permiten recuperar detalles finos incluso de
+patrones no vistos durante el entrenamiento.
+
+En contraste, \textbf{SSIM introduce sensibilidad estructural}: el modelo
+aprende a reconstruir la estructura espec\'ifica de im\'agenes normales
+y falla de forma medible ante anomal\'ias.
+El mejor resultado de U-Net ($\Delta\mu = +0.00045$) y VAE
+($\Delta\mu = +0.00211$) se obtiene con funciones que incluyen SSIM.
+
+\subsection{VAE vs.\ U-Net AE}
+
+El VAE presenta errores de mayor magnitud (0.03--0.05) respecto al
+U-Net (0.0005--0.001) debido a la regularizaci\'on KL que comprime la
+informaci\'on en el espacio latente.
+Esto resulta \textit{ventajoso} para la detecci\'on de anomal\'ias:
+al no poder reconstruir perfectamente, el modelo es m\'as sensible a
+patrones fuera de distribuci\'on.
+
+El U-Net AE con \textit{skip connections} logra reconstrucciones m\'as
+n\'itidas en general, pero esta capacidad juega en su contra cuando se
+busca discriminar anomal\'ias, pues tiende a generalizar bien incluso
+sobre im\'agenes defectuosas.
+
+\subsection{Espacio Latente}
+
+Como se aprecia en la Figura~\ref{fig:tsne}, el an\'alisis t-SNE sobre
+el conjunto de prueba permite visualizar si el modelo aprendi\'o
+representaciones que distinguen im\'agenes normales de defectuosas sin
+supervisi\'on expl\'icita.
+El VAE produce cl\'usters m\'as compactos para las im\'agenes normales,
+gracias a la regularizaci\'on KL que fuerza el espacio latente a seguir
+una distribuci\'on gaussiana.
+En ambas arquitecturas son visibles subgrupos por tipo de producto
+industrial (cable, capsule, screw, transistor).
+
+% =============================================================
+\section{Conclusiones}
+
+\begin{itemize}
+  \item \textbf{Mejor p\'erdida para VAE}: SSIM+L1 ($\Delta\mu = +0.00211$),
+        combinaci\'on que aporta estabilidad de entrenamiento y
+        sensibilidad estructural favorable para la detecci\'on de anomal\'ias.
+
+  \item \textbf{Mejor p\'erdida para U-Net AE}: SSIM ($\Delta\mu = +0.00045$),
+        \'unica configuraci\'on con separaci\'on positiva.
+        L1 y L2 producen resultados invertidos.
+
+  \item \textbf{Mejor configuraci\'on general}: VAE con SSIM+L1,
+        con la mayor separaci\'on relativa entre clases.
+
+  \item \textbf{Detecci\'on de anomal\'ias}: efectiva \'unicamente con
+        p\'erdidas basadas en SSIM.
+        L1 y L2 minimizan el error p\'ixel a p\'ixel sin capturar la
+        distribuci\'on estructural de las im\'agenes normales.
+
+  \item \textbf{Impacto de la arquitectura}: las \textit{skip connections}
+        del U-Net AE mejoran la calidad de reconstrucci\'on general pero
+        reducen la especificidad necesaria para detectar anomal\'ias.
+\end{itemize}
+
+\begin{thebibliography}{00}
+
+\bibitem{mvtec}
+P.~Bergmann, M.~Fauser, D.~Sattlegger, and C.~Steger,
+``MVTec AD --- A Comprehensive Real-World Dataset for Unsupervised
+Anomaly Detection,''
+\textit{IEEE/CVF CVPR}, 2019.
+
+\bibitem{vae}
+D.~P.~Kingma and M.~Welling,
+``Auto-Encoding Variational Bayes,''
+\textit{ICLR}, 2014.
+
+\bibitem{ssim}
+Z.~Wang, A.~C.~Bovik, H.~R.~Sheikh, and E.~P.~Simoncelli,
+``Image Quality Assessment: From Error Visibility to Structural
+Similarity,''
+\textit{IEEE Trans.\ Image Process.}, vol.~13, no.~4, pp.~600--612, 2004.
+
+\bibitem{pytorch}
+A.~Paszke et al.,
+``PyTorch: An Imperative Style, High-Performance Deep Learning Library,''
+\textit{NeurIPS 32}, 2019.
+
+\end{thebibliography}
+
+\end{document}
