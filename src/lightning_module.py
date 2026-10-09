@@ -6,16 +6,30 @@ import torch
 import pytorch_lightning as pl
 import wandb
 from sklearn.manifold import TSNE
+from types import SimpleNamespace
 
 from src.models.vae import VAE
 from src.models.unet_ae import UNetAE
 from src.losses.losses import ReconstructionLoss
 
 
+def _to_namespace(cfg):
+    """Convert OmegaConf DictConfig to SimpleNamespace so hparams are pickle-safe."""
+    try:
+        from omegaconf import DictConfig, OmegaConf
+        if isinstance(cfg, DictConfig):
+            return SimpleNamespace(**OmegaConf.to_container(cfg, resolve=True))
+    except ImportError:
+        pass
+    return cfg
+
+
 class AutoencoderModule(pl.LightningModule):
     def __init__(self, model_cfg, data_cfg):
         super().__init__()
-        self.save_hyperparameters(ignore=['model_cfg', 'data_cfg'])
+        model_cfg = _to_namespace(model_cfg)
+        data_cfg = _to_namespace(data_cfg)
+        self.save_hyperparameters()
         self.model_cfg = model_cfg
         self.data_cfg = data_cfg
 
@@ -79,7 +93,7 @@ class AutoencoderModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, labels, *_ = batch
         loss, recon, recon_loss, kl, latent = self._forward(x)
-        self.log('val/loss', loss, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log('val/loss', loss, on_epoch=True, prog_bar=True)
 
         self._val_latents.append(latent.detach().cpu())
         self._val_labels.append(labels.cpu())
@@ -92,17 +106,13 @@ class AutoencoderModule(pl.LightningModule):
         return loss
 
     def on_validation_epoch_end(self):
-        epoch = self.current_epoch
-
         if self._val_x is not None:
             self._log_recon_grid(self._val_x, self._val_recon, tag='val/reconstructions')
-
-        # t-SNE on test set every 5 epochs
-        if (epoch % 5 == 0 or epoch == self.trainer.max_epochs - 1):
-            self._log_tsne_on_test(epoch)
-
         self._val_latents.clear()
         self._val_labels.clear()
+
+    def on_train_end(self):
+        self._log_tsne_on_test(self.current_epoch)
 
     # ------------------------------------------------------------------
     # Test

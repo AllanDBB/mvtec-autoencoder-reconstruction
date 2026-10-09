@@ -9,10 +9,11 @@ import sys, os, shutil, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import torch
+from types import SimpleNamespace
 from omegaconf import OmegaConf
 from omegaconf.base import ContainerMetadata
 from omegaconf import DictConfig, ListConfig
-torch.serialization.add_safe_globals([DictConfig, ListConfig, ContainerMetadata])
+torch.serialization.add_safe_globals([DictConfig, ListConfig, ContainerMetadata, SimpleNamespace])
 torch.set_float32_matmul_precision('high')
 
 from PIL import Image

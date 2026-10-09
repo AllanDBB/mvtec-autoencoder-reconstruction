@@ -6,7 +6,8 @@ import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf.base import ContainerMetadata
 # PyTorch 2.6+ requires explicit allowlist for non-tensor globals in checkpoints
-torch.serialization.add_safe_globals([DictConfig, ListConfig, ContainerMetadata])
+from types import SimpleNamespace
+torch.serialization.add_safe_globals([DictConfig, ListConfig, ContainerMetadata, SimpleNamespace])
 torch.set_float32_matmul_precision('high')
 
 import pytorch_lightning as pl
@@ -69,10 +70,14 @@ def main(cfg: DictConfig) -> None:
     # ------------------------------------------------------------------
     # Trainer
     # ------------------------------------------------------------------
+    if getattr(cfg.trainer, 'compile', False):
+        module.model = torch.compile(module.model)
+
     trainer = pl.Trainer(
         max_epochs=cfg.trainer.max_epochs,
         accelerator=cfg.trainer.accelerator,
         devices=cfg.trainer.devices,
+        precision=cfg.trainer.precision,
         log_every_n_steps=cfg.trainer.log_every_n_steps,
         check_val_every_n_epoch=cfg.trainer.check_val_every_n_epoch,
         enable_progress_bar=cfg.trainer.enable_progress_bar,

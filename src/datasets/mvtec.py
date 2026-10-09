@@ -9,13 +9,17 @@ class MVTecDataset(Dataset):
     def __init__(self, samples, transform=None):
         self.samples = samples  # list of (path, label_int, defect_type_str, class_str)
         self.transform = transform
+        # Pre-load all images into RAM to eliminate per-epoch disk I/O
+        self._cache = []
+        for img_path, *_ in samples:
+            self._cache.append(Image.open(img_path).convert('RGB'))
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        img_path, label, defect_type, cls = self.samples[idx]
-        img = Image.open(img_path).convert('RGB')
+        _, label, defect_type, cls = self.samples[idx]
+        img = self._cache[idx]
         if self.transform:
             img = self.transform(img)
         return img, label, defect_type, cls
